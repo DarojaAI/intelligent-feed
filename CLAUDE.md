@@ -44,6 +44,28 @@ uvicorn intel.api.outcomes:app --port 8080
 pip install -r requirements.txt
 ```
 
+### Testing
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run a single test file
+python -m pytest tests/test_config.py -v
+
+# Run a specific test
+python -m pytest tests/test_config.py::test_config_loads -v
+```
+
+### Database
+
+```bash
+# Initialize database
+python -m intel.db --init
+# Or using the CLI module
+python -m intel.db_cli --init
+```
+
 ## Architecture
 
 ### Data Flow

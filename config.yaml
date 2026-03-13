@@ -1,0 +1,90 @@
+pipeline:
+  db_path: ./data/intel.db
+  output_dir: ./output
+  log_level: INFO
+  anthropic_model: claude-sonnet-4-20250514
+  enrichment_batch_size: 10
+
+sources:
+  - id: anthropic_blog
+    type: rss
+    url: https://www.anthropic.com/rss.xml
+    topic_hint: ethical-ai
+
+  - id: deepmind_blog
+    type: rss
+    url: https://deepmind.google/blog/rss.xml
+    topic_hint: ethical-ai
+
+  - id: mit_ai_ethics
+    type: rss
+    url: https://aiethics.mit.edu/feed/
+    topic_hint: ethical-ai
+
+  - id: ai_now_institute
+    type: rss
+    url: https://ainowinstitute.org/feed
+    topic_hint: ethical-ai
+
+  - id: partnership_on_ai
+    type: rss
+    url: https://partnershiponai.org/feed/
+    topic_hint: ethical-ai
+
+  - id: ieee_spectrum_ai
+    type: rss
+    url: https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss
+    topic_hint: ethical-ai
+
+  - id: pypi_rss
+    type: rss
+    url: https://pypi.org/rss/updates.xml
+    topic_hint: python-packaging
+
+tracked_packages:
+  - pydantic
+  - fastapi
+  - anthropic
+  - langchain
+  - openai
+  - httpx
+  - sqlalchemy
+  - alembic
+  - pytest
+  - ruff
+  - mypy
+  - uvicorn
+
+subscriptions:
+  - id: sub_ethical_ai_human
+    name: Ethical AI Weekly Digest
+    subscriber_type: human
+    topic_filters:
+      - ethical-ai
+      - ai-safety
+      - ai-governance
+      - ai-policy
+      - bias-fairness
+      - responsible-ai
+      - ai-incidents
+    relevance_threshold: 0.4
+    lookback_days: 7
+    schedule: "0 7 * * 1"
+    delivery:
+      slack_webhook_url: ""
+
+  - id: sub_pypi_agent
+    name: PyPI Package Monitor
+    subscriber_type: agent
+    topic_filters:
+      - python-packaging
+      - package-update
+      - breaking-change
+      - security
+      - deprecation
+    relevance_threshold: 0.3
+    lookback_days: 1
+    schedule: "0 6 * * *"
+    delivery:
+      webhook_url: ""
+      webhook_secret: ""

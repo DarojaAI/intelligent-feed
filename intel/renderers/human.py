@@ -1,0 +1,219 @@
+"""Human renderer - generates Markdown digests"""
+
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+import anthropic
+import httpx
+
+from intel.config import Config
+from intel.models import EnrichedItem, Subscription
+
+logger = logging.getLogger(__name__)
+
+
+class HumanRenderer:
+    def __init__(self, config: Optional[Config] = None):
+        self.config = config or Config()
+        self.client = anthropic.Anthropic(api_key=self.config.anthropic_api_key) if self.config.anthropic_api_key else None
+        self.model = self.config.anthropic_model
+
+    def render(self, subscription: Subscription, items: list[EnrichedItem], run_id: str) -> str:
+        """Render a Markdown digest for a human subscription"""
+        if not items:
+            logger.info(f"No items to render for {subscription.id}")
+            return ""
+
+        # Sort items by urgency and relevance
+        sorted_items = sorted(items, key=lambda x: (
+            {"critical": 0, "high": 1, "medium": 2, "low": 3}.get(x.urgency, 3),
+            -x.relevance_scores.get(subscription.id, 0)
+        ), reverse=False)
+
+        # Generate executive summary
+        executive_summary = self._generate_executive_summary(sorted_items)
+
+        # Build the digest
+        digest = self._build_digest(subscription, sorted_items, executive_summary, run_id)
+
+        # Write to file
+        output_path = Path(self.config.output_dir) / "digests" / f"{subscription.id}_{run_id}.md"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(digest)
+        logger.info(f"Wrote digest to {output_path}")
+
+        # Send to Slack if configured
+        if subscription.delivery.slack_webhook_url:
+            self._send_to_slack(subscription, sorted_items, executive_summary, output_path)
+
+        return digest
+
+    def _generate_executive_summary(self, items: list[EnrichedItem]) -> str:
+        """Generate an executive summary using Claude"""
+        if not self.client:
+            return "Executive summary unavailable (no API key)."
+
+        summaries = [item.summary for item in items[:10]]  # Limit to 10 items
+
+        prompt = f"""System:
+You are a strategic analyst writing for a technically literate but non-specialist audience.
+Given a list of article summaries from this week, write a 2–3 sentence executive summary
+that identifies the most important themes and why they matter. Be concrete, not vague.
+Return plain text only — no markdown, no bullet points.
+
+User:
+{json.dumps(summaries)}"""
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=256,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            return response.content[0].text.strip()
+        except Exception as e:
+            logger.error(f"Error generating executive summary: {e}")
+            return "Unable to generate executive summary."
+
+    def _build_digest(self, subscription: Subscription, items: list[EnrichedItem],
+                     executive_summary: str, run_id: str) -> str:
+        """Build the Markdown digest"""
+        now = datetime.utcnow()
+        date_range = f"Week of {(now - __import__('datetime').timedelta(days=7)).strftime('%Y-%m-%d')} to {now.strftime('%Y-%m-%d')}"
+
+        lines = [
+            f"# {subscription.name}",
+            f"*{date_range} · {len(items)} items*",
+            "",
+            "---",
+            "",
+            "## Executive Summary",
+            "",
+            executive_summary,
+            "",
+            "---",
+            "",
+        ]
+
+        # Highlights (high urgency)
+        highlights = [i for i in items if i.urgency in ("high", "critical")]
+        if highlights:
+            lines.extend([
+                "## Highlights",
+                "",
+            ])
+            for item in highlights[:5]:  # Top 5
+                lines.extend(self._format_item(item, subscription.id))
+                lines.append("")
+
+        # All items by topic
+        lines.extend([
+            "---",
+            "",
+            "## All Items",
+            "",
+        ])
+
+        # Group by first topic tag
+        by_topic = {}
+        for item in items:
+            topic = item.topic_tags[0] if item.topic_tags else "other"
+            if topic not in by_topic:
+                by_topic[topic] = []
+            by_topic[topic].append(item)
+
+        for topic, topic_items in sorted(by_topic.items()):
+            lines.append(f"### {topic.replace('-', ' ').title()}")
+            lines.append("")
+            for item in topic_items:
+                lines.extend(self._format_item(item, subscription.id, brief=True))
+                lines.append("")
+            lines.append("")
+
+        # Footer
+        lines.extend([
+            "---",
+            "",
+            f"*Generated by Intelligence Feed System · {run_id} · {now.isoformat()}*",
+            f"*To change your subscription preferences, edit config.yaml*",
+        ])
+
+        return "\n".join(lines)
+
+    def _format_item(self, item: EnrichedItem, subscription_id: str, brief: bool = False) -> list[str]:
+        """Format a single item for the digest"""
+        urgency_emoji = {
+            "critical": "🔴 Critical",
+            "high": "🟠 High",
+            "medium": "🟡 Medium",
+            "low": "🟢 Low",
+        }
+
+        tags = " ".join(f"`{t}`" for t in item.topic_tags[:3])
+
+        lines = [
+            f"### {item.raw.title}",
+            f"**Source:** {item.raw.source_id} · **Published:** {item.raw.published_at.strftime('%Y-%m-%d')} · **Urgency:** {urgency_emoji.get(item.urgency, item.urgency)}",
+            f"**Tags:** {tags}",
+            "",
+        ]
+
+        if not brief:
+            lines.append(item.summary)
+            lines.append("")
+            lines.append(f"[Read more →]({item.raw.url})")
+        else:
+            lines.append(f"_{item.summary}_")
+
+        return lines
+
+    def _send_to_slack(self, subscription: Subscription, items: list[EnrichedItem],
+                      executive_summary: str, output_path: Path):
+        """Send digest to Slack webhook"""
+        if not subscription.delivery.slack_webhook_url:
+            return
+
+        # Get top items for Slack
+        top_items = items[:3]
+
+        blocks = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": f"🧠 {subscription.name}"}
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": f"*{len(items)} items this week*\n{executive_summary}"
+                }
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "*Highlights:*\n" + "\n".join(
+                        f"• <{i.raw.url}|{i.raw.title}>" for i in top_items
+                    )
+                }
+            },
+            {
+                "type": "context",
+                "elements": [
+                    {"type": "mrkdwn", "text": f"Full digest: `{output_path}`"}
+                ]
+            }
+        ]
+
+        try:
+            httpx.post(
+                subscription.delivery.slack_webhook_url,
+                json={"blocks": blocks},
+                timeout=10,
+            )
+            logger.info(f"Sent Slack notification for {subscription.id}")
+        except Exception as e:
+            logger.error(f"Error sending to Slack: {e}")
