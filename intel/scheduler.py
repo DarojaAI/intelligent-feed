@@ -16,6 +16,7 @@ from intel.fetcher import Fetcher
 from intel.models import Subscription
 from intel.renderers.agent import AgentRenderer
 from intel.renderers.human import HumanRenderer
+from intel.renderers.structured import StructuredRenderer
 from intel.router import Router
 
 
@@ -103,6 +104,7 @@ def run_pipeline(subscription_id: str = None):
     # Process each subscription
     human_renderer = HumanRenderer(config)
     agent_renderer = AgentRenderer(config)
+    structured_renderer = StructuredRenderer(config)
 
     for subscription in subscriptions:
         logger.info(f"Processing subscription: {subscription.name}")
@@ -117,6 +119,8 @@ def run_pipeline(subscription_id: str = None):
             human_renderer.render(subscription, matched_items, run_id)
         elif subscription.subscriber_type == "agent":
             agent_renderer.render(subscription, matched_items, run_id)
+        elif subscription.subscriber_type == "structured":
+            structured_renderer.render(subscription, matched_items, run_id)
 
     logger.info("Pipeline completed")
 

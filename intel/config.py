@@ -6,7 +6,7 @@ from typing import Any
 
 import yaml
 
-from intel.models import Subscription, DeliveryConfig
+from intel.models import Subscription, DeliveryConfig, StructuredConfig
 
 
 class Config:
@@ -87,6 +87,13 @@ class Config:
                 webhook_url=delivery_dict.get("webhook_url", ""),
                 webhook_secret=delivery_dict.get("webhook_secret", ""),
             )
+            structured_dict = sub_dict.get("structured", {})
+            structured = StructuredConfig(
+                project=structured_dict.get("project", ""),
+                domain=structured_dict.get("domain", "general"),
+                entity_filters=structured_dict.get("entity_filters", []),
+                activator_config=structured_dict.get("activator_config", {}),
+            )
             subs.append(Subscription(
                 id=sub_dict["id"],
                 name=sub_dict["name"],
@@ -96,6 +103,7 @@ class Config:
                 lookback_days=sub_dict.get("lookback_days", 7),
                 schedule=sub_dict.get("schedule", ""),
                 delivery=delivery,
+                structured=structured,
             ))
         return subs
 

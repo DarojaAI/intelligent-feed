@@ -90,6 +90,9 @@ python -m intel.db_cli --init
 | `intel/db.py` | SQLite persistence layer |
 | `intel/renderers/human.py` | Markdown digest renderer |
 | `intel/renderers/agent.py` | JSON payload renderer |
+| `intel/renderers/structured.py` | Phase 4: Cognee cognify() → structured claims → activation |
+| `intel/cognify_client.py` | Phase 4: Cognee client wrapper (vec/graph/rel store) |
+| `intel/activation/` | Phase 4: Project-specific activation handlers |
 | `intel/api/outcomes.py` | FastAPI endpoint for agent outcome callbacks |
 
 ### Data Models

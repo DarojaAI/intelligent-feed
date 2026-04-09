@@ -52,13 +52,28 @@ class DeliveryConfig:
 
 
 @dataclass
+class StructuredConfig:
+    """Configuration for structured/research subscriptions (Phase 4)."""
+    # Which project to activate: globalbitings | bond-nexus | rag-research | dynamic-worlock
+    project: str = ""
+    # Domain hint passed to Cognee cognify() (cuisine, finance, defense, etc.)
+    domain: str = "general"
+    # Entity types to extract (claim_type filter before activation)
+    entity_filters: list[str] = field(default_factory=list)
+    # Extra key-value config passed to the activator
+    activator_config: dict = field(default_factory=dict)
+
+
+@dataclass
 class Subscription:
     """Subscriber configuration"""
     id: str
     name: str
-    subscriber_type: str  # "human" | "agent"
+    subscriber_type: str  # "human" | "agent" | "structured"
     topic_filters: list[str]
     relevance_threshold: float = 0.5
     lookback_days: int = 7
     schedule: str = ""  # cron expression
     delivery: DeliveryConfig = field(default_factory=DeliveryConfig)
+    # Phase 4 — structured output config
+    structured: StructuredConfig = field(default_factory=StructuredConfig)

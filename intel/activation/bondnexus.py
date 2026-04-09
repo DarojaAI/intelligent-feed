@@ -1,0 +1,222 @@
+"""
+BondNexus activator — Phase 4.
+
+Pushes confirmed convention/rule claims to:
+  1. conventions.yaml  (structured convention facts — day-count, holidays, etc.)
+  2. Regenerates MARKET_SOURCES.md from conventions.yaml
+
+Expected claim schema from Cognee:
+  {
+    "claim_text": "BRazil: 360/360 day count, business day = D+2, holidays = ANBIMA calendar",
+    "entity_type": "day_count_convention",
+    "source_url": "https://www.anbima.com.br/...",
+    "source_title": "ANBIMA Market Conventions",
+    "extracted_at": "2026-04-09T...",
+    "domain": "finance",
+  }
+"""
+
+from __future__ import annotations
+
+import logging
+import subprocess
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Optional
+
+import yaml
+
+from intel.activation.base import ActivationResult, BaseActivator
+
+logger = logging.getLogger(__name__)
+
+
+class BondNexusActivator(BaseActivator):
+    project_name = "bond-nexus"
+
+    def __init__(
+        self,
+        conventions_path: str = "~/GithubProjects/bond-nexus/data/conventions.yaml",
+        market_sources_path: str = "~/GithubProjects/bond-nexus/docs/MARKET_SOURCES.md",
+        dry_run: bool = False,
+    ):
+        self.conventions_path = Path(conventions_path).expanduser()
+        self.market_sources_path = Path(market_sources_path).expanduser()
+        self.dry_run = dry_run
+
+    # ── BaseActivator ────────────────────────────────────────────────────────
+
+    def check_readiness(self) -> ActivationResult:
+        issues = []
+        if not self.conventions_path.exists():
+            issues.append(f"conventions.yaml not found: {self.conventions_path}")
+        if not self.market_sources_path.exists():
+            issues.append(f"MARKET_SOURCES.md not found: {self.market_sources_path}")
+
+        if issues:
+            logger.warning("BondNexus readiness issues: " + "; ".join(issues))
+            return ActivationResult(
+                success=False,
+                project=self.project_name,
+                claim_count=0,
+                error="; ".join(issues),
+            )
+
+        return ActivationResult(success=True, project=self.project_name, claim_count=0)
+
+    def activate(self, claims: list[dict]) -> ActivationResult:
+        # Filter to convention/rule claims
+        relevant = [
+            c for c in claims
+            if c.get("entity_type") in (
+                "day_count_convention",
+                "holiday_calendar",
+                "business_day_rule",
+                "convention",
+                "rule",
+            )
+        ]
+
+        if not relevant:
+            return ActivationResult(
+                success=True,
+                project=self.project_name,
+                claim_count=0,
+                details={"msg": "no convention/rule claims in batch"},
+            )
+
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would update {self.conventions_path} with {len(relevant)} claims")
+            return ActivationResult(
+                success=True,
+                project=self.project_name,
+                claim_count=len(relevant),
+                output_path=str(self.conventions_path),
+                details={"dry_run": True},
+            )
+
+        # Load existing conventions
+        existing = {}
+        if self.conventions_path.exists():
+            with open(self.conventions_path, "r", encoding="utf-8") as f:
+                existing = yaml.safe_load(f) or {}
+
+        # Merge new claims — group by entity_type then by country/market key
+        updated = self._merge_claims(existing, relevant)
+
+        # Write updated conventions.yaml
+        self.conventions_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.conventions_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(updated, f, sort_keys=False, allow_unicode=True)
+
+        # Regenerate MARKET_SOURCES.md
+        regen_result = self._regenerate_market_sources(updated)
+
+        return ActivationResult(
+            success=True,
+            project=self.project_name,
+            claim_count=len(relevant),
+            output_path=str(self.conventions_path),
+            details={
+                "merged": len(relevant),
+                "market_sources_regen": regen_result,
+                "entity_types": list({c.get("entity_type") for c in relevant}),
+            },
+        )
+
+    # ── internal ─────────────────────────────────────────────────────────────
+
+    def _merge_claims(self, existing: dict, new_claims: list[dict]) -> dict:
+        """
+        Merge new claims into existing conventions structure.
+
+        Conventions are grouped by country then by convention type.
+        New claims override or append to existing entries with provenance tracking.
+        """
+        updated = dict(existing)
+
+        for claim in new_claims:
+            entity_type = claim.get("entity_type", "convention")
+            source = claim.get("source_url", "")
+            text = claim.get("claim_text", "")
+
+            # Parse simple "Country: Description" format from claim_text
+            country, _, rest = text.partition(":")
+            country = country.strip().lower()
+            description = rest.strip()
+
+            if country not in updated:
+                updated[country] = {}
+
+            if entity_type not in updated[country]:
+                updated[country][entity_type] = []
+
+            # Check for duplicate source
+            existing_sources = {
+                entry.get("source", ""): i
+                for i, entry in enumerate(updated[country][entity_type])
+            }
+
+            if source in existing_sources:
+                # Update existing entry
+                idx = existing_sources[source]
+                updated[country][entity_type][idx]["convention_text"] = description
+                updated[country][entity_type][idx]["updated_at"] = (
+                    datetime.utcnow().isoformat() + "Z"
+                )
+                logger.info(f"Updated existing {country}/{entity_type} from {source}")
+            else:
+                # Append new entry
+                updated[country][entity_type].append({
+                    "convention_text": description,
+                    "source": source,
+                    "source_title": claim.get("source_title", ""),
+                    "extracted_at": claim.get("extracted_at", ""),
+                    "status": claim.get("status", "confirmed"),
+                    "added_by": "cognify-pipeline",
+                })
+                logger.info(f"Added new {country}/{entity_type} from {source}")
+
+        return updated
+
+    def _regenerate_market_sources(self, conventions: dict) -> dict:
+        """
+        Regenerate MARKET_SOURCES.md from current conventions.yaml.
+
+        Generates a markdown table of markets, convention types,
+        and source links — suitable for human review.
+        """
+        if not self.market_sources_path.exists():
+            return {"skipped": "MARKET_SOURCES.md not found"}
+
+        lines = [
+            "# Market Sources & Conventions",
+            "",
+            f"_Auto-generated {datetime.utcnow().strftime('%Y-%m-%d')}_  ",
+            "| Market | Convention Type | Convention | Source |",
+            "|--------|----------------|------------|--------|",
+        ]
+
+        for country, types in sorted(conventions.items()):
+            for conv_type, entries in sorted(types.items()):
+                if not entries:
+                    continue
+                for entry in entries:
+                    conv_text = entry.get("convention_text", "")
+                    source = entry.get("source", "")
+                    source_title = entry.get("source_title", "")
+                    source_link = f"[{source_title}]({source})" if source else "—"
+                    lines.append(
+                        f"| {country.title()} | {conv_type.replace('_', ' ')} "
+                        f"| {conv_text} | {source_link} |"
+                    )
+
+        content = "\n".join(lines) + "\n"
+
+        if self.dry_run:
+            logger.info(f"[DRY RUN] Would write {len(lines)} lines to MARKET_SOURCES.md")
+            return {"dry_run": True, "lines": len(lines)}
+
+        self.market_sources_path.write_text(content, encoding="utf-8")
+        logger.info(f"Regenerated MARKET_SOURCES.md with {len(lines)} lines")
+        return {"lines_written": len(lines)}

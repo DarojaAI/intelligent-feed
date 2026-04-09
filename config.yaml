@@ -88,3 +88,47 @@ subscriptions:
     delivery:
       webhook_url: ""
       webhook_secret: ""
+
+  # ─── PHASE 4: Structured / Research Subscriptions ────────────────────────
+  # Uncomment and configure for your project.
+  # Run with: python -m intel.scheduler --run-now --subscription sub_globalbitings_research
+
+  # - id: sub_globalbitings_research
+  #   name: GlobalBitings Dish Research
+  #   subscriber_type: structured
+  #   topic_filters:
+  #     - cuisine
+  #     - restaurant
+  #     - dish
+  #     - ingredient
+  #   relevance_threshold: 0.2
+  #   lookback_days: 7
+  #   schedule: "0 8 * * *"          # Run daily at 08:00 UTC
+  #   structured:
+  #     project: globalbitings       # maps to GlobalBitingsActivator
+  #     domain: cuisine
+  #     entity_filters:
+  #       - dish
+  #       - restaurant
+  #       - ingredient
+
+  # - id: sub_bondnexus_research
+  #   name: BondNexus Convention Research
+  #   subscriber_type: structured
+  #   topic_filters:
+  #     - finance
+  #     - bonds
+  #     - day-count
+  #     - holidays
+  #     - convention
+  #   relevance_threshold: 0.2
+  #   lookback_days: 30
+  #   schedule: "0 9 * * 1"         # Weekly on Monday
+  #   structured:
+  #     project: bond-nexus         # maps to BondNexusActivator
+  #     domain: finance
+  #     entity_filters:
+  #       - day_count_convention
+  #       - holiday_calendar
+  #       - business_day_rule
+  #       - convention
