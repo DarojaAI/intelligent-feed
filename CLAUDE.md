@@ -91,9 +91,46 @@ python -m intel.db_cli --init
 | `intel/renderers/human.py` | Markdown digest renderer |
 | `intel/renderers/agent.py` | JSON payload renderer |
 | `intel/renderers/structured.py` | Phase 4: Cognee cognify() → structured claims → activation |
-| `intel/cognify_client.py` | Phase 4: Cognee client wrapper (vec/graph/rel store) |
+| `intel/cognify_client.py` | Phase 4: Cognee client wrapper (pgvector + OpenRouter via LiteLLM) |
 | `intel/activation/` | Phase 4: Project-specific activation handlers |
 | `intel/api/outcomes.py` | FastAPI endpoint for agent outcome callbacks |
+
+### Phase 4 — Cognee Research Pipeline
+
+**Architecture:**
+- VecStore: pgvector (PostgreSQL) — same instance as relational DB
+- RelStore: PostgreSQL (SQLite dev fallback)
+- GraphStore: Neo4j (optional)
+- LLM: OpenRouter via LiteLLM `custom` endpoint
+
+**Required env vars** (see `.env.example` for full list):
+```bash
+LLM_PROVIDER=custom
+LLM_MODEL=openrouter/google/gemini-2.0-flash   # or any openrouter/<slug>
+LLM_ENDPOINT=https://openrouter.ai/api/v1
+LLM_API_KEY=<your-openrouter-key>
+DB_PROVIDER=postgres
+DB_HOST=localhost; DB_PORT=5432; DB_NAME=cognee
+DB_USERNAME=postgres; DB_PASSWORD=<pw>
+VECTOR_DB_PROVIDER=pgvector
+```
+
+**Install:**
+```bash
+pip install 'cognee[postgres]' openrouter psycopg2-binary
+cp .env.example .env   # then fill in your keys
+```
+
+**Usage:**
+```python
+from intel.cognify_client import CogneeClient, CogneeConfig
+
+config = CogneeConfig()          # reads env vars; override any field directly
+client = CogneeClient(config)
+client.setup()                   # apply config → os.environ (call before cognify)
+result = client.cognify(documents=[...], domain="finance", project="bond-nexus")
+client.add(claims=result["claims"], project="bond-nexus")
+```
 
 ### Data Models
 
