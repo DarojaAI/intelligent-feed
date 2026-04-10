@@ -45,8 +45,7 @@ class DynamicWorlockActivator(BaseActivator):
 
     def check_readiness(self) -> ActivationResult:
         issues = []
-        if not self.knowledge_store_path.exists():
-            issues.append(f"knowledge_store.json not found: {self.knowledge_store_path}")
+        # knowledge_store.json is created by _write_knowledge_records() — non-blocking
         if issues:
             logger.warning("DynamicWorlock readiness issues: " + "; ".join(issues))
             return ActivationResult(

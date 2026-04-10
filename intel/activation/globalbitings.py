@@ -37,7 +37,7 @@ class GlobalBitingsActivator(BaseActivator):
     def __init__(
         self,
         extraction_log_path: str = "~/GithubProjects/GlobalBitings/data/extraction_log.jsonl",
-        rag_sync_cmd: str = "python ~/GithubProjects/GlobalBitings/rag_research_tool/RAGResearchTool.py --sync",
+        rag_sync_cmd: str = "/usr/bin/python3 /home/desktopuser/GithubProjects/GlobalBitings/shapes/RAGResearchTool.py --sync",
         dry_run: bool = False,
     ):
         self.extraction_log_path = Path(extraction_log_path).expanduser()
