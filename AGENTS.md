@@ -66,7 +66,7 @@ A new project activator must:
 - `DarojaAI/globalbitings` — receives claims from `GlobalBitingsActivator` (writes to `extraction_log.jsonl`).
 - `DarojaAI/bond-nexus` — receives claims from `BondNexusActivator` (writes to `conventions.yaml`).
 - `DarojaAI/rag_research_tool` — receives claims from `RagResearchActivator` (writes to `triplets.json`).
-- `DarojaAI/dynamic-worlock` — **DANGLING REFERENCE.** Repo does not exist (per Q14). Activator ships; will fail at runtime if invoked. Delete or unorphan the repo.
+- `DarojaAI/dynamic-worlock` — **PRIVATE.** Per the operator (2026-06-14), the repo is intentionally kept for development of a knowledge repository for sporting events. Not visible to the public `gh` token, but it exists. The activator is shipped and will work once the target data files exist at the configured paths (env-var-overridable).
 
 ## Related
 
