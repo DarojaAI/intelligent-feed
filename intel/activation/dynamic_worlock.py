@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -33,12 +34,25 @@ class DynamicWorlockActivator(BaseActivator):
 
     def __init__(
         self,
-        knowledge_store_path: str = "~/GithubProjects/dynamic-worlock/data/knowledge_store.json",
-        conflicts_path: str = "~/GithubProjects/dynamic-worlock/data/conflicts.json",
+        knowledge_store_path: Optional[str] = None,
+        conflicts_path: Optional[str] = None,
         dry_run: bool = False,
     ):
-        self.knowledge_store_path = Path(knowledge_store_path).expanduser()
-        self.conflicts_path = Path(conflicts_path).expanduser()
+        # Env-var override; default keeps the operator's local checkout layout.
+        self.knowledge_store_path = Path(
+            knowledge_store_path
+            or os.environ.get(
+                "DYNAMIC_WORLOCK_KNOWLEDGE_STORE_PATH",
+                "~/GithubProjects/dynamic-worlock/data/knowledge_store.json",
+            )
+        ).expanduser()
+        self.conflicts_path = Path(
+            conflicts_path
+            or os.environ.get(
+                "DYNAMIC_WORLOCK_CONFLICTS_PATH",
+                "~/GithubProjects/dynamic-worlock/data/conflicts.json",
+            )
+        ).expanduser()
         self.dry_run = dry_run
 
     # ── BaseActivator ────────────────────────────────────────────────────────

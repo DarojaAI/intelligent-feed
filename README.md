@@ -61,3 +61,30 @@ See `CLAUDE.md` for detailed architecture documentation.
 ```bash
 python -m pytest tests/ -v
 ```
+
+## Shared library contract
+
+`intelligent-feed` is **also** a shared activation library. Per-project activators live in `intel/activation/` and ship with this repo. Other DarojaAI repos consume them.
+
+### Consumers
+
+- `DarojaAI/research-orchestrator` — imports `intel.activation.factory.get_activator` via the `INTELLIGENT_FEED_PATH` env var. Clone this repo to a local path and export `INTELLIGENT_FEED_PATH=/path/to/intelligent-feed`.
+- `DarojaAI/globalbitings`, `bond-nexus`, `rag_research_tool` — receive activated claims in their data files.
+- `DarojaAI/dynamic-worlock` — **repo does not currently exist** (see `DarojaAI/darojaai_architect/OPEN_QUESTIONS.md` Q14). Activator is shipped but unused.
+
+### Configuration
+
+Each activator's target paths default to `~/GithubProjects/<project>/...` (operator's local checkout layout). Override per environment with env vars:
+
+| Activator | Env var |
+|---|---|
+| `GlobalBitingsActivator` | `GLOBALBITINGS_EXTRACTION_LOG_PATH`, `GLOBALBITINGS_RAG_SYNC_CMD` |
+| `BondNexusActivator` | `BONDNEXUS_CONVENTIONS_PATH`, `BONDNEXUS_MARKET_SOURCES_PATH` |
+| `RagResearchActivator` | `RAG_RESEARCH_TRIPLETS_PATH` |
+| `DynamicWorlockActivator` | `DYNAMIC_WORLOCK_KNOWLEDGE_STORE_PATH`, `DYNAMIC_WORLOCK_CONFLICTS_PATH` |
+
+See `AGENTS.md` for the full contract that consumers and contributors should follow.
+
+## License
+
+MIT. See `LICENSE`.

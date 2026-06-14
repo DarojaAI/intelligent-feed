@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -36,12 +37,25 @@ class GlobalBitingsActivator(BaseActivator):
 
     def __init__(
         self,
-        extraction_log_path: str = "~/GithubProjects/GlobalBitings/data/extraction_log.jsonl",
-        rag_sync_cmd: str = "/usr/bin/python3 /home/desktopuser/GithubProjects/GlobalBitings/shapes/RAGResearchTool.py --sync",
+        extraction_log_path: Optional[str] = None,
+        rag_sync_cmd: Optional[str] = None,
         dry_run: bool = False,
     ):
-        self.extraction_log_path = Path(extraction_log_path).expanduser()
-        self.rag_sync_cmd = rag_sync_cmd
+        # Env-var override; default keeps the operator's local checkout layout.
+        self.extraction_log_path = Path(
+            extraction_log_path
+            or os.environ.get(
+                "GLOBALBITINGS_EXTRACTION_LOG_PATH",
+                "~/GithubProjects/GlobalBitings/data/extraction_log.jsonl",
+            )
+        ).expanduser()
+        self.rag_sync_cmd = (
+            rag_sync_cmd
+            or os.environ.get(
+                "GLOBALBITINGS_RAG_SYNC_CMD",
+                "/usr/bin/python3 /home/desktopuser/GithubProjects/GlobalBitings/shapes/RAGResearchTool.py --sync",
+            )
+        )
         self.dry_run = dry_run
 
     # ── BaseActivator ────────────────────────────────────────────────────────
