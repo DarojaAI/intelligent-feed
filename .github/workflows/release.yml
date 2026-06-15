@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Concurrency is managed by the reusable-semantic-release workflow itself.
+# Defining a matching group here causes a deadlock-cancel. See the
+# matching comment in DarojaAI/devnexus-common/.github/workflows/release.yml
+# and https://github.com/DarojaAI/devnexus-common/actions/runs/27252116281
+# for the full explanation.
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  semantic-release:
+    name: Semantic Release
+    if: "!contains(github.event.head_commit.message, '[skip release]')"
+    uses: DarojaAI/infra-actions/.github/workflows/reusable-semantic-release.yml@v1.3.0
+    with:
+      working-directory: '.'
+      # The reusable workflow's install step runs
+      #   npm install --save-dev semantic-release@^23.0.0 ...
+      # which downgrades this repo's package.json (we pin ^24.0.0)
+      # and dirties the working tree. The reusable's pre-flight
+      # `git status --porcelain` check then bails with
+      # "Uncommitted changes detected" before semantic-release
+      # even runs. Skip the check; semantic-release itself does
+      # not need a clean tree to analyze commits.
+      #
+      # This project does not have a package.json, so the dirty-check
+      # failure mode is moot here, but we keep the flag to match
+      # devnexus-common's setup and to defend against the
+      # `reusable-semantic-release` workflow ever gaining a
+      # package.json-mutating step.
+      skip-dirty-check: true
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}

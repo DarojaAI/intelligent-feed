@@ -21,10 +21,29 @@ The runtime will inject `AGENTS.md`, `SOUL.md` (if any), and recent memory. Do n
 - **Architecture:** Sources → Fetcher → Enricher → Router → Renderers (human / agent / structured). See `CLAUDE.md` §"Architecture".
 - **Phase 4 (structured):** `intel/renderers/structured.py` runs items through Cognee `cognify()`, then routes to per-project activators in `intel/activation/`. See `memory/2026-06-14-intelligent-feed-take.md` in `darojaai_architect` for the full coupling map.
 - **Activators** (one per project): `GlobalBitingsActivator`, `BondNexusActivator`, `RagResearchActivator`, `DynamicWorlockActivator`. Each writes to a target repo's data file.
-- **Env vars:** `INTELLIGENT_FEED_PATH` (consumer side; where to find this repo), `*_PATH` env vars per activator (target side; see "Configuration" below).
-- **Consumers:** `DarojaAI/research-orchestrator` imports `get_activator()` via `INTELLIGENT_FEED_PATH` `sys.path` injection.
-- **Tests:** `pytest tests/ -v` (6 test files, ~85% coverage per pre-existing CI).
+- **Env vars:** `INTELLIGENT_FEED_PATH` is **deprecated** (see "Packaging" below); `*_PATH` env vars per activator (target side; see "Configuration" below).
+- **Consumers:** `DarojaAI/research-orchestrator` imports `get_activator()` from the installed `intelligent-feed` package (post-`0.1.0`). The pre-`0.1.0` `INTELLIGENT_FEED_PATH` + `sys.path` injection is still honored as a fallback until `0.3.0`.
+- **Tests:** `pytest tests/ -v` (6 test files, ~85% coverage per pre-existing CI). Install with `pip install -e ".[dev]"` (not `pip install -r requirements.txt` — that file is gone as of `0.1.0`).
 - **Decisions / lessons:** see `docs/decisions/` if it exists; otherwise in the `darojaai_architect` repo's `memory/` and `OPEN_QUESTIONS.md`.
+
+## Packaging (post-`0.1.0`)
+
+As of `0.1.0` (tracking issue `#2`), this repo is a regular installable
+Python package. Consumers (e.g. `research-orchestrator`) install it with
+`pip install intelligent-feed>=0.1.0` from the DarojaAI private index
+and import `from intel.activation.factory import get_activator`. The
+old `INTELLIGENT_FEED_PATH` + `sys.path` injection pattern is deprecated
+and will be removed in `0.3.0`. See [`CHANGELOG.md`](CHANGELOG.md) for
+the full notes and `README.md` for the install/quickstart.
+
+Build / install:
+
+- `pip install -e ".[dev]"` for an editable install with test deps.
+- `pip install .` for a non-editable install.
+- The package version is derived from git tags by `setuptools_scm`
+  (`pyproject.toml`, `tag_regex = ^v(?P<version>X.Y.Z)$`). Tags are
+  produced by `.github/workflows/release.yml` from conventional
+  commits; the first release tag is `v0.1.0`.
 
 ## House Rules
 
@@ -34,6 +53,8 @@ The runtime will inject `AGENTS.md`, `SOUL.md` (if any), and recent memory. Do n
 4. **Don't commit a real token.** `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, etc. are secrets. `.env.example` documents the shape; `.env` is gitignored.
 5. **Don't push directly to main.** PR required; CI must pass.
 6. **Don't reimplement LLM / Cognee / DB plumbing from scratch.** Use `intel.activation.BaseActivator`, `intel.cognify_client.CogneeClient`, and the existing model classes.
+7. **Don't add `INTELLIGENT_FEED_PATH` to new consumer code.** Use `pip install intelligent-feed` and a normal import. The env-var fallback is for the `0.1.0` → `0.3.0` migration window only.
+8. **Don't bump the version manually in `pyproject.toml`.** Versions come from git tags via `setuptools_scm`. Bump by writing conventional commits (a `feat:` triggers a minor bump; a `fix:` triggers a patch).
 
 ## Configuration
 
@@ -62,7 +83,7 @@ A new project activator must:
 
 ## Consumers
 
-- `DarojaAI/research-orchestrator` — imports `intel.activation.factory.get_activator` via `INTELLIGENT_FEED_PATH` (sys.path injection). If the path is wrong, the import fails; the agent fails fast.
+- `DarojaAI/research-orchestrator` — imports `intel.activation.factory.get_activator` after `pip install intelligent-feed>=0.1.0`. Pre-`0.1.0` deployments use `INTELLIGENT_FEED_PATH` (sys.path injection); the env var is deprecated and will be removed in `0.3.0`. See `research-orchestrator#1` for the consumer-side migration plan.
 - `DarojaAI/globalbitings` — receives claims from `GlobalBitingsActivator` (writes to `extraction_log.jsonl`).
 - `DarojaAI/bond-nexus` — receives claims from `BondNexusActivator` (writes to `conventions.yaml`).
 - `DarojaAI/rag_research_tool` — receives claims from `RagResearchActivator` (writes to `triplets.json`).
