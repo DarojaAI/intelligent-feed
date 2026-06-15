@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -34,10 +35,17 @@ class RagResearchActivator(BaseActivator):
 
     def __init__(
         self,
-        triplets_path: str = "~/GithubProjects/rag_research_tool/triplets.json",
+        triplets_path: Optional[str] = None,
         dry_run: bool = False,
     ):
-        self.triplets_path = Path(triplets_path).expanduser()
+        # Env-var override; default keeps the operator's local checkout layout.
+        self.triplets_path = Path(
+            triplets_path
+            or os.environ.get(
+                "RAG_RESEARCH_TRIPLETS_PATH",
+                "~/GithubProjects/rag_research_tool/triplets.json",
+            )
+        ).expanduser()
         self.dry_run = dry_run
 
     # ── BaseActivator ────────────────────────────────────────────────────────

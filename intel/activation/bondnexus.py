@@ -19,6 +19,7 @@ Expected claim schema from Cognee:
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from datetime import datetime
 from pathlib import Path
@@ -36,12 +37,25 @@ class BondNexusActivator(BaseActivator):
 
     def __init__(
         self,
-        conventions_path: str = "~/GithubProjects/bond-nexus/nexus_poc/conventions/conventions.yaml",
-        market_sources_path: str = "~/GithubProjects/bond-nexus/docs/MARKET_SOURCES.md",
+        conventions_path: Optional[str] = None,
+        market_sources_path: Optional[str] = None,
         dry_run: bool = False,
     ):
-        self.conventions_path = Path(conventions_path).expanduser()
-        self.market_sources_path = Path(market_sources_path).expanduser()
+        # Env-var override; default keeps the operator's local checkout layout.
+        self.conventions_path = Path(
+            conventions_path
+            or os.environ.get(
+                "BONDNEXUS_CONVENTIONS_PATH",
+                "~/GithubProjects/bond-nexus/nexus_poc/conventions/conventions.yaml",
+            )
+        ).expanduser()
+        self.market_sources_path = Path(
+            market_sources_path
+            or os.environ.get(
+                "BONDNEXUS_MARKET_SOURCES_PATH",
+                "~/GithubProjects/bond-nexus/docs/MARKET_SOURCES.md",
+            )
+        ).expanduser()
         self.dry_run = dry_run
 
     # ── BaseActivator ────────────────────────────────────────────────────────
